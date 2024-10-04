@@ -15,6 +15,8 @@ export class VertComponent implements OnInit {
 
   public donateUrl: string;
   public totalActivityTime: number;
+  public sortedActivityTypes: string[];
+  activityTypeCounts: { [key: string]: number };
 
   constructor(
     @Inject(OPEN_RESOURCE_RESOLVER) private readonly openResourceResolver: OpenResourceResolver,
@@ -26,11 +28,33 @@ export class VertComponent implements OnInit {
       VertComponent.PAYPAL_ACCOUNT_BASE_URL + "/" + VertComponent.DEFAULT_AMOUNT + VertComponent.DEFAULT_CURRENCY;
   }
 
-  public async onDonateClicked() {
+  public async onCalculateClicked() {
     // this.openResourceResolver.openLink(this.donateUrl);
     const x = await this.activityService.fetch();
     console.log(x);
     this.totalActivityTime = 0;
+
+    // Initialize the dictionary/map
+    this.activityTypeCounts = {};
+
+    // Iterate over the activities and count each type
+    for (const activity of x) {
+      const activityType = activity.type;
+      if (this.activityTypeCounts[activityType]) {
+        this.activityTypeCounts[activityType]++;
+      } else {
+        this.activityTypeCounts[activityType] = 1;
+      }
+    }
+
+    // Sort the keys by their counts in descending order
+    this.sortedActivityTypes = Object.keys(this.activityTypeCounts).sort(
+      (a, b) => this.activityTypeCounts[b] - this.activityTypeCounts[a]
+    );
+
+    console.log("Activity Type Counts:", this.activityTypeCounts);
+    console.log("Sorted Activity Types:", this.sortedActivityTypes);
+
     for (const activity of x) {
       this.totalActivityTime += (activity.endTimestamp - activity.startTimestamp) / 3600;
     }

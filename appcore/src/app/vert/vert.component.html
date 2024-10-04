@@ -7,15 +7,19 @@
     </mat-card-subtitle>
     <mat-card-content>
       <div>
-        Doing the best with passion! Waiting for your help!
         This is Colins Custom HTML
-        Total Vert: {{totalActivityTime}}
+        Total Time Doing Activities: {{totalActivityTime}}
       </div>
       <div>
-        <button (click)="onDonateClicked()" color="primary" mat-stroked-button>
+        <button (click)="onCalculateClicked()" color="primary" mat-stroked-button>
           <mat-icon fontSet="material-icons-outlined">favorite_border</mat-icon>
-          Donate with Paypal
+          Calculate Totals
         </button>
+      </div>
+      <div>
+        <ul>
+          <li *ngFor="let activity of sortedActivityTypes">{{ activity }} : {{activityTypeCounts[activity]}}</li>
+        </ul>
       </div>
     </mat-card-content>
   </mat-card>
