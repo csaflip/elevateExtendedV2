@@ -14,6 +14,7 @@ export class VertComponent implements OnInit {
   public static readonly PAYPAL_ACCOUNT_BASE_URL: string = "https://www.paypal.me/thomaschampagne";
 
   public donateUrl: string;
+  public totalActivityTime: number;
 
   constructor(
     @Inject(OPEN_RESOURCE_RESOLVER) private readonly openResourceResolver: OpenResourceResolver,
@@ -23,14 +24,16 @@ export class VertComponent implements OnInit {
   public ngOnInit() {
     this.donateUrl =
       VertComponent.PAYPAL_ACCOUNT_BASE_URL + "/" + VertComponent.DEFAULT_AMOUNT + VertComponent.DEFAULT_CURRENCY;
-
-    const x = this.activityService.fetch().then(data => {
-      console.log(data);
-    });
-    console.log(x);
   }
 
-  public onDonateClicked() {
-    this.openResourceResolver.openLink(this.donateUrl);
+  public async onDonateClicked() {
+    // this.openResourceResolver.openLink(this.donateUrl);
+    const x = await this.activityService.fetch();
+    console.log(x);
+    this.totalActivityTime = 0;
+    for (const activity of x) {
+      this.totalActivityTime += (activity.endTimestamp - activity.startTimestamp) / 3600;
+    }
+    console.log(this.totalActivityTime);
   }
 }
