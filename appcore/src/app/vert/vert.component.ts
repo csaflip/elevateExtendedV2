@@ -2,6 +2,26 @@ import { Component, Inject, OnInit } from "@angular/core";
 import { OPEN_RESOURCE_RESOLVER, OpenResourceResolver } from "../shared/services/links-opener/open-resource-resolver";
 import { ActivityService } from "../shared/services/activity/activity.service";
 import { DesktopActivityService } from "../shared/services/activity/impl/desktop-activity.service";
+import { SportsLibProcessor } from "/Users/colinadams/elevate/elevateExtended/desktop/src/processors/sports-lib.processor"; // Import the SportsLibProcessor
+import { Streams } from "@elevate/shared/models/activity-data/streams.model";
+import { StreamsService } from "../shared/services/streams/streams.service";
+import { ActivityViewService } from "../desktop/activity-view/shared/activity-view.service";
+import { Activity } from "@elevate/shared/models/sync/activity.model";
+import { ConnectorType } from "@elevate/shared/sync/connectors/connector-type.enum";
+import { LoggerService } from "../shared/services/logging/logger.service";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { MatDialog } from "@angular/material/dialog";
+import { ActivatedRoute, Router } from "@angular/router";
+import { WarningException } from "@elevate/shared/exceptions/warning.exception";
+import { ProcessStreamMode } from "@elevate/shared/sync/compute/stream-processor";
+import _ from "lodash";
+import moment from "moment";
+import { Location } from "@angular/common";
+import { ActivityViewComponent } from "../desktop/activity-view/activity-view.component";
+import DesktopUserSettings = UserSettings.DesktopUserSettings;
+import { UserSettings } from "@elevate/shared/models/user-settings/user-settings.namespace";
+import { UserSettingsService } from "../shared/services/user-settings/user-settings.service";
+import { DesktopUserSettingsService } from "../shared/services/user-settings/desktop/desktop-user-settings.service";
 
 @Component({
   selector: "app-donate",
@@ -13,19 +33,103 @@ export class VertComponent implements OnInit {
   public static readonly DEFAULT_CURRENCY: string = "usd";
   public static readonly PAYPAL_ACCOUNT_BASE_URL: string = "https://www.paypal.me/thomaschampagne";
 
+  constructor(
+    @Inject(OPEN_RESOURCE_RESOLVER) private readonly openResourceResolver: OpenResourceResolver,
+    @Inject(ActivatedRoute) private readonly route: ActivatedRoute,
+    @Inject(ActivityService) protected readonly activityService: DesktopActivityService,
+    @Inject(StreamsService) protected readonly streamsService: StreamsService,
+    @Inject(ActivityViewService) private readonly activityViewService: ActivityViewService,
+    @Inject(Router) protected readonly router: Router,
+    @Inject(MatSnackBar) protected readonly snackBar: MatSnackBar,
+    @Inject(Location) private location: Location,
+    @Inject(MatDialog) private readonly dialog: MatDialog,
+    @Inject(LoggerService) private readonly logger: LoggerService,
+    @Inject(UserSettingsService) private readonly userSettingsService: DesktopUserSettingsService
+  ) {
+    this.activity = null;
+    this.typeDisplay = null;
+    this.startDateDisplay = null;
+    this.athleteSnapshotDisplay = null;
+    this.streams = null;
+    // this.userSettings = null;
+    this.hasMapData = false;
+    this.displayGraph = false;
+    this.displayFlags = true;
+  }
+
   public donateUrl: string;
   public totalActivityTime: number;
   public sortedActivityTypes: string[];
+  public streams: Streams;
   activityTypeCounts: { [key: string]: number };
 
-  constructor(
-    @Inject(OPEN_RESOURCE_RESOLVER) private readonly openResourceResolver: OpenResourceResolver,
-    @Inject(ActivityService) protected readonly activityService: DesktopActivityService
-  ) {}
+  public readonly ConnectorType = ConnectorType;
+
+  public activity: Activity;
+  public typeDisplay: string;
+  public startDateDisplay: string;
+  public endDateDisplay: string;
+  public athleteSnapshotDisplay: string;
+  public userSettings: DesktopUserSettings;
+  public hasMapData: boolean;
+  public deviceIcon: string;
+  public displayGraph: boolean;
+  public displayFlags: boolean;
 
   public ngOnInit() {
     this.donateUrl =
       VertComponent.PAYPAL_ACCOUNT_BASE_URL + "/" + VertComponent.DEFAULT_AMOUNT + VertComponent.DEFAULT_CURRENCY;
+
+    // Fetch activity to display from id
+    const activityId = "35afe81eeb2c0a56b34d8f6d";
+    this.activityService
+      .getById(activityId)
+      .then((activity: Activity) => {
+        if (!activity) {
+          // this.onBack();
+          return Promise.reject(new WarningException("Unknown activity"));
+        }
+
+        this.activity = activity;
+        this.typeDisplay = _.startCase(this.activity.type);
+        this.startDateDisplay = moment(this.activity.startTime).format("LLLL");
+        this.endDateDisplay = moment(this.activity.endTime).format("LLLL");
+
+        // this.deviceIcon =
+        //   ActivityViewComponent.DEVICE_WATCH_SPORTS.indexOf(this.activity.type) !== -1 ? "watch" : "smartphone";
+
+        return this.userSettingsService.fetch();
+      })
+      .then((userSettings: DesktopUserSettings) => {
+        this.userSettings = userSettings;
+        // this.athleteSnapshotDisplay = this.formatAthleteSnapshot(this.activity, this.userSettings.systemUnit);
+
+        // Fetch associated stream if exists
+        return this.streamsService.getProcessedById(ProcessStreamMode.DISPLAY, this.activity.id, {
+          type: this.activity.type,
+          hasPowerMeter: this.activity.hasPowerMeter,
+          isSwimPool: this.activity.isSwimPool,
+          athleteSnapshot: this.activity.athleteSnapshot
+        });
+      })
+      .then((streams: Streams) => {
+        this.streams = streams;
+        this.hasMapData = streams?.latlng?.length > 0;
+
+        this.logger.debug("Activity", this.activity);
+        this.logger.debug("Streams", this.streams);
+      })
+      .catch(err => {
+        if (!(err instanceof WarningException)) {
+          throw err;
+        }
+      });
+  }
+
+  public async onRunStats() {
+    await SportsLibProcessor.checkProximityToSummits(
+      "/Users/colinadams/Downloads/export_14653597/activities/1102805536.gpx"
+    );
   }
 
   public async onCalculateClicked() {

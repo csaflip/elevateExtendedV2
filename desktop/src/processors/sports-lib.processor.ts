@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import xmldom from "@xmldom/xmldom";
 import fs from "fs";
 import _ from "lodash";
@@ -31,6 +32,9 @@ import { DataTime } from "@thomaschampagne/sports-lib/lib/data/data.time";
 import { extension } from "@elevate/shared/tools/extension";
 import { FileType } from "@thomaschampagne/sports-lib/lib/events/adapters/file-type.enum";
 import { ActivityParsingOptions } from "@thomaschampagne/sports-lib/lib/activities/activity-parsing-options";
+import axios from "axios";
+import GPXParser from "gpxparser";
+import { getDistance } from "geolib";
 
 export class SportsLibProcessor {
   public static getEvent(path: string): Promise<{
@@ -270,5 +274,93 @@ export class SportsLibProcessor {
 
       return lapObj;
     });
+  }
+
+  // processSummits(url: string): Promise<any> {
+  //   url = "/Users/colinadams/Downloads/export_14653597/activities";
+
+  //   return url;
+  // }
+  // 1. Parse GPX Data to extract coordinates
+  private static parseGPX = (gpxFile: string) => {
+    const gpxData = fs.readFileSync(gpxFile).toString();
+    const gpx = new GPXParser();
+    gpx.parse(gpxData);
+
+    const trackPoints = gpx.tracks[0].points.map((point: any) => ({
+      lat: point.lat,
+      lon: point.lon
+    }));
+
+    return trackPoints;
+  };
+
+  // 2. Query OSM for Summits using Overpass API
+  private static querySummitsFromOSM = async (bbox: string) => {
+    const overpassQuery = `
+  [out:json];
+  node["natural"="peak"]${bbox};
+  out body;
+  `;
+
+    try {
+      const response = await axios.post("https://overpass-api.de/api/interpreter", overpassQuery);
+      const summits = response.data.elements.map((element: any) => ({
+        lat: element.lat,
+        lon: element.lon,
+        name: element.tags.name
+      }));
+      return summits;
+    } catch (error) {
+      console.error("Error querying OSM:", error);
+      return [];
+    }
+  };
+
+  // 3. Function to calculate proximity
+  private static withinRange = (trackPoints: any[], summits: any[], maxDistanceInMeters: number) => {
+    const closeSummits: any[] = [];
+
+    trackPoints.forEach(trackPoint => {
+      summits.forEach(summit => {
+        const distance = getDistance(
+          { latitude: trackPoint.lat, longitude: trackPoint.lon },
+          { latitude: summit.lat, longitude: summit.lon }
+        );
+        if (distance <= maxDistanceInMeters) {
+          closeSummits.push({
+            summitName: summit.name,
+            summitLat: summit.lat,
+            summitLon: summit.lon,
+            distance: distance
+          });
+        }
+      });
+    });
+
+    return closeSummits;
+  };
+
+  // 4. Main Function to Check Proximity of GPX Track to Summits
+  public static async checkProximityToSummits(gpxFile: string): Promise<void> {
+    // a. Parse the GPX file
+    const x = await this.getEvent(gpxFile);
+    const trackPoints = this.parseGPX(gpxFile);
+
+    // b. Define the bounding box around your GPX track (minLat, minLon, maxLat, maxLon)
+    const bbox = "[minLat,minLon,maxLat,maxLon]"; // Adjust the bounding box accordingly
+
+    // c. Query OSM for summits in the bounding box
+    const summits = await this.querySummitsFromOSM(bbox);
+
+    // d. Calculate proximity (0.2 miles = 322 meters)
+    const closeSummits = this.withinRange(trackPoints, summits, 322);
+
+    // e. Output the summits within 0.2 miles
+    if (closeSummits.length > 0) {
+      console.log("Summits within 0.2 miles:", closeSummits);
+    } else {
+      console.log("No summits found within 0.2 miles of your GPX track.");
+    }
   }
 }
