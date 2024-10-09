@@ -6,6 +6,8 @@ import { ActivityViewService } from "../desktop/activity-view/shared/activity-vi
 import { ActivitySensorsService } from "../desktop/activity-view/shared/activity-sensors.service";
 import { ActivityStatsService } from "../desktop/activity-view/shared/activity-stats.service";
 import { TimeInZonesService } from "../desktop/activity-view/activity-view-time-in-zones/services/time-in-zones.service";
+import { ActivityViewModule } from "../desktop/activity-view/activity-view.module";
+import { ActivityViewMapComponent } from "../desktop/activity-view/activity-view-map/activity-view-map.component";
 
 const routes: Routes = [
   {
@@ -16,7 +18,7 @@ const routes: Routes = [
 
 @NgModule({
   imports: [CoreModule, RouterModule.forChild(routes)],
-  declarations: [VertComponent],
+  declarations: [VertComponent, ActivityViewMapComponent],
   providers: [ActivityViewService, ActivitySensorsService, ActivityStatsService, TimeInZonesService]
 })
 export class VertModule {}

@@ -19,6 +19,13 @@
           <mat-icon fontSet="material-icons-outlined">favorite_border</mat-icon>
           Run Stats
         </button>
+        <button (click)="checkProximityToSummits()" color="primary" mat-stroked-button>
+          <mat-icon fontSet="material-icons-outlined">favorite_border</mat-icon>
+          Check Proximity to Summits
+        </button>
+      </div>
+      <div *ngIf="hasMapData">
+        <app-activity-view-map [latLng]="streams.latlng"></app-activity-view-map>
       </div>
       <div>
         <ul>

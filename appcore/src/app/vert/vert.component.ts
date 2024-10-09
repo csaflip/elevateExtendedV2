@@ -22,6 +22,9 @@ import DesktopUserSettings = UserSettings.DesktopUserSettings;
 import { UserSettings } from "@elevate/shared/models/user-settings/user-settings.namespace";
 import { UserSettingsService } from "../shared/services/user-settings/user-settings.service";
 import { DesktopUserSettingsService } from "../shared/services/user-settings/desktop/desktop-user-settings.service";
+import { ActivityViewMapComponent } from "../desktop/activity-view/activity-view-map/activity-view-map.component";
+import axios from "axios";
+import { getDistance } from "geolib";
 
 @Component({
   selector: "app-donate",
@@ -163,5 +166,78 @@ export class VertComponent implements OnInit {
       this.totalActivityTime += (activity.endTimestamp - activity.startTimestamp) / 3600;
     }
     console.log(this.totalActivityTime);
+  }
+
+  // 2. Query OSM for Summits using Overpass API
+  private querySummitsFromOSM = async (bbox: string) => {
+    const bbox2 = "(37.7749,-122.4194,37.8049,-122.3894)";
+    const overpassQuery = `
+  [out:json];
+  node["natural"="peak"]${bbox2};
+  out body;
+  `;
+
+    try {
+      const response = await axios.post("https://overpass-api.de/api/interpreter", overpassQuery);
+      // const response = await fetch("https://overpass-api.de/api/interpreter", {
+      //   method: "POST",
+      //   body: overpassQuery,
+      // });
+      const summits = response.data.elements.map((element: any) => ({
+        lat: element.lat,
+        lon: element.lon,
+        name: element.tags.name
+      }));
+      return summits;
+    } catch (error) {
+      console.error("Error querying OSM:", error);
+      return [];
+    }
+  };
+
+  // 3. Function to calculate proximity
+  private withinRange = (trackPoints: any[], summits: any[], maxDistanceInMeters: number) => {
+    const closeSummits: any[] = [];
+
+    trackPoints.forEach(trackPoint => {
+      summits.forEach(summit => {
+        const distance = getDistance(
+          { latitude: trackPoint.lat, longitude: trackPoint.lon },
+          { latitude: summit.lat, longitude: summit.lon }
+        );
+        if (distance <= maxDistanceInMeters) {
+          closeSummits.push({
+            summitName: summit.name,
+            summitLat: summit.lat,
+            summitLon: summit.lon,
+            distance: distance
+          });
+        }
+      });
+    });
+
+    return closeSummits;
+  };
+
+  // 4. Main Function to Check Proximity of GPX Track to Summits
+  public async checkProximityToSummits(): Promise<void> {
+    // a. Parse the GPX file
+    const trackPoints = this.streams.latlng;
+
+    // b. Define the bounding box around your GPX track (minLat, minLon, maxLat, maxLon)
+    const bbox = "[minLat,minLon,maxLat,maxLon]"; // Adjust the bounding box accordingly
+
+    // c. Query OSM for summits in the bounding box
+    const summits = await this.querySummitsFromOSM(bbox);
+
+    // d. Calculate proximity (0.2 miles = 322 meters)
+    const closeSummits = this.withinRange(trackPoints, summits, 322);
+
+    // e. Output the summits within 0.2 miles
+    if (closeSummits.length > 0) {
+      console.log("Summits within 0.2 miles:", closeSummits);
+    } else {
+      console.log("No summits found within 0.2 miles of your GPX track.");
+    }
   }
 }
