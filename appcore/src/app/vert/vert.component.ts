@@ -14,7 +14,7 @@ import { MatDialog } from "@angular/material/dialog";
 import { ActivatedRoute, Router } from "@angular/router";
 import { WarningException } from "@elevate/shared/exceptions/warning.exception";
 import { ProcessStreamMode } from "@elevate/shared/sync/compute/stream-processor";
-import _ from "lodash";
+import _, { isEmpty } from "lodash";
 import moment from "moment";
 import { Location } from "@angular/common";
 import { ActivityViewComponent } from "../desktop/activity-view/activity-view.component";
@@ -58,6 +58,7 @@ export class VertComponent implements OnInit {
     this.hasMapData = false;
     this.displayGraph = false;
     this.displayFlags = true;
+    this.closeSummits = {};
   }
 
   public donateUrl: string;
@@ -78,6 +79,7 @@ export class VertComponent implements OnInit {
   public deviceIcon: string;
   public displayGraph: boolean;
   public displayFlags: boolean;
+  public closeSummits: Object;
 
   public ngOnInit() {
     this.donateUrl =
@@ -168,9 +170,21 @@ export class VertComponent implements OnInit {
     console.log(this.totalActivityTime);
   }
 
+  private calculateBBox(points: number[][]): string {
+    const lats = points.map(point => point[0]);
+    const lons = points.map(point => point[1]);
+
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+
+    return `(${minLat},${minLon},${maxLat},${maxLon})`;
+  }
+
   // 2. Query OSM for Summits using Overpass API
   private querySummitsFromOSM = async (bbox: string) => {
-    const bbox2 = "(37.7749,-122.4194,37.8049,-122.3894)";
+    const bbox2 = this.calculateBBox(this.streams.latlng);
     const overpassQuery = `
   [out:json];
   node["natural"="peak"]${bbox2};
@@ -197,21 +211,18 @@ export class VertComponent implements OnInit {
 
   // 3. Function to calculate proximity
   private withinRange = (trackPoints: any[], summits: any[], maxDistanceInMeters: number) => {
-    const closeSummits: any[] = [];
+    const closeSummits = {};
 
     trackPoints.forEach(trackPoint => {
       summits.forEach(summit => {
         const distance = getDistance(
-          { latitude: trackPoint.lat, longitude: trackPoint.lon },
+          { latitude: trackPoint[0], longitude: trackPoint[1] },
           { latitude: summit.lat, longitude: summit.lon }
         );
         if (distance <= maxDistanceInMeters) {
-          closeSummits.push({
-            summitName: summit.name,
-            summitLat: summit.lat,
-            summitLon: summit.lon,
-            distance: distance
-          });
+          if (closeSummits[summit.name] === undefined) {
+            closeSummits[summit.name] = true;
+          }
         }
       });
     });
@@ -231,11 +242,11 @@ export class VertComponent implements OnInit {
     const summits = await this.querySummitsFromOSM(bbox);
 
     // d. Calculate proximity (0.2 miles = 322 meters)
-    const closeSummits = this.withinRange(trackPoints, summits, 322);
+    this.closeSummits = this.withinRange(trackPoints, summits, 322);
 
     // e. Output the summits within 0.2 miles
-    if (closeSummits.length > 0) {
-      console.log("Summits within 0.2 miles:", closeSummits);
+    if (isEmpty(this.closeSummits)) {
+      console.log("Summits within 0.2 miles:", this.closeSummits);
     } else {
       console.log("No summits found within 0.2 miles of your GPX track.");
     }

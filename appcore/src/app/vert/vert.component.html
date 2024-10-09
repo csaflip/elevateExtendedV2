@@ -1,14 +1,18 @@
 <mat-card class="centered-section">
     <mat-card-title class="mat-headline">
-      Push this project higher!
+      Geo Testing
     </mat-card-title>
     <mat-card-subtitle class="mat-title">
-      Yes you can!
+      Experimental GPX processing.
     </mat-card-subtitle>
     <mat-card-content>
       <div>
-        This is Colins Custom HTML
         Total Time Doing Activities: {{totalActivityTime}}
+      </div>
+      <div>
+        <ul>
+            <li *ngFor="let summit of (closeSummits | keyvalue)">{{ summit.key }}</li>
+        </ul>
       </div>
       <div>
         <button (click)="onCalculateClicked()" color="primary" mat-stroked-button>
